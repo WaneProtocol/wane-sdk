@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# lockfile (deps are pinned in package.json; published package does not ship it)
+package-lock.json
+
+# test / coverage
+coverage/
+
+# env / secrets
+.env
+.env.*
+*.key
+*.pem
+*-keypair.json
+id.json
+
+# editor / os
+.DS_Store
+*.log
+.idea/
+.vscode/
