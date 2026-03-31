@@ -1,0 +1,83 @@
+{
+  "name": "wane-sdk",
+  "version": "0.4.0",
+  "description": "Unified Wane client for AI agents: read the on-chain antibody registry, report threats, and drive a screening session wallet across Base and Solana.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./evm": {
+      "types": "./dist/evm/index.d.ts",
+      "import": "./dist/evm/index.js"
+    },
+    "./solana": {
+      "types": "./dist/solana/index.d.ts",
+      "import": "./dist/solana/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "wane",
+    "ai-agent",
+    "security",
+    "antibody",
+    "threat-intelligence",
+    "base",
+    "solana",
+    "onchain",
+    "session-wallet",
+    "wallet-drainer",
+    "eip-7702"
+  ],
+  "author": {
+    "name": "Wane Network",
+    "url": "https://wane.network"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WaneProtocol/wane-sdk.git"
+  },
+  "homepage": "https://wane.network",
+  "bugs": {
+    "url": "https://github.com/WaneProtocol/wane-sdk/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@solana/web3.js": "^1.98.4",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.5.4",
+    "viem": "^2.21.55"
+  }
+}
