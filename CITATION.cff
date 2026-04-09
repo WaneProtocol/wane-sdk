@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: wane-sdk
+abstract: Unified Wane client for AI agents. Read the on-chain antibody registry, report threats, and drive a screening session wallet across Base and Solana.
+type: software
+license: MIT
+url: https://wane.network
+repository-code: https://github.com/WaneProtocol/wane-sdk
+authors:
+  - name: Wane Network
+keywords:
+  - base
+  - solana
+  - ai-agent
+  - security
+  - antibody
+  - threat-intelligence
+  - eip-7702
