@@ -52,3 +52,21 @@ flowchart TD
   SC -->|clean: value moves| D[destination]
   SC -. flagged: revert Blocked .-> D
 ```
+
+The EVM client screens on-chain two ways: EIP-7702 (the agent's own wallet
+delegates to `WaneDelegate`, so every `execute()` is screened) and `WaneVault`
+(funds live in the vault, so there is no raw-send bypass and ERC-20 recipients
+decoded from calldata are screened too). The Solana client screens through a
+session vault PDA that binds the destination's antibody PDA by seeds, so a
+flagged send cannot be slipped through by omitting the account.
+
+See [`docs/architecture.md`](./docs/architecture.md) for the full data flow and
+[`docs/threat-model.md`](./docs/threat-model.md) for what the screen does and
+does not stop.
+
+## Build
+
+```bash
+# 1. clone
+git clone https://github.com/WaneProtocol/wane-sdk
+cd wane-sdk
