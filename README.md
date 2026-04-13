@@ -22,3 +22,33 @@ agent is immune next time. For full enforcement it routes outflows through a
 session wallet that screens each send on-chain and reverts a flagged transfer
 before any value moves. One package covers Base (viem) and Solana
 (`@solana/web3.js`), with the same threat taxonomy on both.
+
+> One agent gets hit. Every agent gets immune.
+
+## Features
+
+| Feature | EVM (Base) | Solana |
+|---|---|---|
+| `check` / `assertSafe` before signing (free view) | stable | stable |
+| Herd feed: `count`, `recent`, live `watch` | stable | count |
+| `report` a novel threat (stake `$WANE`, mint antibody) | stable | instruction builder |
+| Per-agent policy: caps, kill switch, TTL, allowlists | stable | policy account |
+| Session wallet: enroll, deposit, screened send, withdraw | vault + 7702 | vault PDA |
+| EIP-7702 one-signature protection (`enable`, `send`, `wrap`) | stable | not applicable |
+| Non-custodial screening vault (`createVault`, `vaultSend`) | stable | session vault |
+| Auto-report loop (`protect`: guard, run, report on attack) | stable | manual |
+| Zero-config deployment factories (no address pasting) | stable | stable |
+
+## Architecture
+
+```mermaid
+flowchart TD
+  A[agent] -->|check target, free view| R[Wane antibody registry]
+  R -->|flagged? id?| A
+  A -->|report novel threat, stake + mint| R
+  R -->|AntibodyMinted| H[herd feed: recent / watch]
+  A -->|enforced path: enable / createVault| S[session wallet]
+  S -->|screened send| SC{on-chain screen}
+  SC -->|clean: value moves| D[destination]
+  SC -. flagged: revert Blocked .-> D
+```
