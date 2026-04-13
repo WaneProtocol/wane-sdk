@@ -70,3 +70,28 @@ does not stop.
 # 1. clone
 git clone https://github.com/WaneProtocol/wane-sdk
 cd wane-sdk
+
+# 2. install (peer deps viem + @solana/web3.js install as devDeps here)
+npm install
+
+# 3. typecheck, test, build
+npm run lint     # tsc --noEmit
+npm test         # jest: discriminators, PDAs, address encoding
+npm run build    # emits dist/ with .d.ts
+```
+
+Required tooling:
+
+- Node.js >= 18
+- npm 9+ (or pnpm / yarn, your choice)
+
+Peer dependencies (provided by your app): `viem ^2.21` for the EVM client,
+`@solana/web3.js ^1.98` for the Solana client. Import only the chain you use and
+the other runtime never loads.
+
+## Quick start
+
+Read before you sign, on Base:
+
+```ts
+import { Wane } from "wane-sdk";
