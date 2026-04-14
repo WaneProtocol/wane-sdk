@@ -95,3 +95,27 @@ Read before you sign, on Base:
 
 ```ts
 import { Wane } from "wane-sdk";
+
+const wane = Wane.base({ agent: myAgentAddress });
+
+const v = await wane.checkAddress("0x1465E33f687C557BF275D6d692eC1316126d8e9e");
+// { flagged: true, antibodyId: 42n, kind: 0, subject: "0x...e9e" }
+
+await wane.assertSafe(target); // throws WaneBlockedError if flagged
+```
+
+Drop-in protection with one EIP-7702 signature:
+
+```ts
+import { createWalletClient, http } from "viem";
+import { Wane } from "wane-sdk";
+
+const wane = Wane.base({ agent: account.address });
+const wallet = createWalletClient({ account, chain, transport: http() });
+
+await wane.enable(wallet);                       // one signature, screens every send after
+const tx = await wane.send(wallet, { to, value }); // reverts Blocked before value moves if flagged
+// "0x<tx hash>"
+```
+
+Read and route on Solana:
