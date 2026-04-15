@@ -119,3 +119,27 @@ const tx = await wane.send(wallet, { to, value }); // reverts Blocked before val
 ```
 
 Read and route on Solana:
+
+```ts
+import { Wane, PublicKey } from "wane-sdk/solana";
+
+const wane = Wane.devnet();
+
+const flagged = await wane.checkAddress(new PublicKey("So111...112"));
+// { flagged: false, antibody: null }
+
+const sig = await wane.send(ownerSigner, destination, 1_000_000_000n);
+// "<base58 signature>" ; throws if the program reverts on a flagged destination
+```
+
+Report a novel threat so the herd goes immune (Base):
+
+```ts
+const res = await wane.report(wallet, {
+  subject: evm.addressSubject(badAddress),
+  evidence: proofHash,
+});
+// { skipped: false, txHash: "0x...", id: 43n }   (skipped: true if already known)
+```
+
+## Project structure
