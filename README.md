@@ -168,3 +168,32 @@ wane-sdk/
 ├── examples/                    base-check, base-protect, solana-session
 └── docs/                        architecture, threat-model, deployments
 ```
+
+## Deployments
+
+- **Base mainnet (8453)**: registry `0x027F371fB139A57EcD2A2E175d30157eEA1C56de`,
+  policy `0x26deE4503C7f67356837ED41cE285026EF256667`,
+  delegate `0x9175d735D512d730510148ED4D6702eF99CF4901`,
+  vault factory `0x6640dd13F172c356f671d35ef76695792908e2a9`,
+  token `0x1465E33f687C557BF275D6d692eC1316126d8e9e`
+- **Base Sepolia**: registry `0x027F371fB139A57EcD2A2E175d30157eEA1C56de`
+- **Solana**: registry `5Arj4zbFs5GigEGUSUb9hKNMYaPLqv1XgJXUcnGJ1wJH`,
+  vault `5YK7gMzkjUvLaxfNisMdtjRK4UeAiJBCSonB3GgrtTYh`
+
+Full table with explorer links in [`docs/deployments.md`](./docs/deployments.md).
+
+## Contributing
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
+
+## License
+
+MIT. See [`LICENSE`](./LICENSE).
+
+## Links
+
+- Website: <https://wane.network>
+- X: <https://x.com/wanedotnetwork> (raw handle: `@wanedotnetwork`)
+- GitHub: <https://github.com/WaneProtocol/wane-sdk>
+- Issues: <https://github.com/WaneProtocol/wane-sdk/issues>
