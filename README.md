@@ -143,3 +143,28 @@ const res = await wane.report(wallet, {
 ```
 
 ## Project structure
+
+```
+wane-sdk/
+├── package.json                 unified manifest, peer deps viem + @solana/web3.js
+├── tsconfig.json                NodeNext, strict, declaration output
+├── jest.config.mjs              ts-jest ESM
+├── README.md
+├── LICENSE                      MIT
+├── CONTRIBUTING.md / CODE_OF_CONDUCT.md / SECURITY.md
+├── CHANGELOG.md / ROADMAP.md / CITATION.cff
+├── .editorconfig / .gitattributes / .gitignore
+├── .github/
+│   ├── workflows/ci.yml         format check + build (light, green)
+│   ├── ISSUE_TEMPLATE/          bug_report.md, feature_request.md, config.yml
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── CODEOWNERS / FUNDING.yml / SUPPORT.md
+├── src/
+│   ├── index.ts                 unified entry: Wane.base() / Wane.solana(), evm + solana namespaces
+│   ├── evm/                     viem client (registry, policy, 7702 delegate, vault) + ABI slice
+│   └── solana/                  @solana/web3.js client (registry, session vault, PDAs)
+├── test/
+│   └── encoding.test.ts         discriminators, PDA seeds, address subject encoding
+├── examples/                    base-check, base-protect, solana-session
+└── docs/                        architecture, threat-model, deployments
+```
