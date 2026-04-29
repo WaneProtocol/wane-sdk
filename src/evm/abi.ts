@@ -71,3 +71,45 @@ export const waneRegistryAbi = [
     ],
   },
 ] as const;
+
+export const wanePolicyAbi = [
+  {
+    type: "function",
+    name: "evaluate",
+    stateMutability: "view",
+    inputs: [
+      { name: "agent", type: "address" },
+      { name: "target", type: "address" },
+      { name: "amount", type: "uint128" },
+    ],
+    outputs: [
+      { name: "allowed", type: "bool" },
+      { name: "reason", type: "uint8" },
+    ],
+  },
+  {
+    type: "function",
+    name: "evaluateCall",
+    stateMutability: "view",
+    inputs: [
+      { name: "agent", type: "address" },
+      { name: "target", type: "address" },
+      { name: "selector", type: "bytes4" },
+      { name: "amount", type: "uint128" },
+    ],
+    outputs: [
+      { name: "allowed", type: "bool" },
+      { name: "reason", type: "uint8" },
+    ],
+  },
+  {
+    type: "function",
+    name: "isTokenAllowed",
+    stateMutability: "view",
+    inputs: [
+      { name: "agent", type: "address" },
+      { name: "token", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
