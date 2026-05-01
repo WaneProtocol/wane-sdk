@@ -113,3 +113,54 @@ export const wanePolicyAbi = [
     outputs: [{ name: "", type: "bool" }],
   },
 ] as const;
+
+// WaneDelegate: the EIP-7702 delegate code an agent's wallet points at. Every
+// outbound action the agent routes through execute() is screened on-chain
+// before it runs; a flagged target reverts with Blocked(target, reason).
+export const waneDelegateAbi = [
+  {
+    type: "function",
+    name: "execute",
+    stateMutability: "payable",
+    inputs: [
+      { name: "target", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+    ],
+    outputs: [{ name: "ret", type: "bytes" }],
+  },
+  {
+    type: "function",
+    name: "executeBatch",
+    stateMutability: "payable",
+    inputs: [
+      { name: "targets", type: "address[]" },
+      { name: "values", type: "uint256[]" },
+      { name: "datas", type: "bytes[]" },
+    ],
+    outputs: [{ name: "rets", type: "bytes[]" }],
+  },
+  {
+    type: "function",
+    name: "wouldAllow",
+    stateMutability: "view",
+    inputs: [
+      { name: "target", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+    ],
+    outputs: [
+      { name: "allowed", type: "bool" },
+      { name: "reason", type: "uint8" },
+    ],
+  },
+  {
+    type: "error",
+    name: "Blocked",
+    inputs: [
+      { name: "target", type: "address" },
+      { name: "reason", type: "uint8" },
+    ],
+  },
+  { type: "error", name: "NotSelf", inputs: [] },
+] as const;
