@@ -164,3 +164,22 @@ export const waneDelegateAbi = [
   },
   { type: "error", name: "NotSelf", inputs: [] },
 ] as const;
+
+// WanePolicy.enroll: one tx an agent sends to turn protection on for its own
+// address. blockKinds=0 means "all kinds"; caps of 0 mean "no cap".
+export const wanePolicyEnrollAbi = [
+  {
+    type: "function",
+    name: "enroll",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agent", type: "address" },
+      { name: "blockKinds", type: "uint8" },
+      { name: "minCorrobs", type: "uint32" },
+      { name: "perTxCap", type: "uint128" },
+      { name: "dailyCap", type: "uint128" },
+      { name: "expiresAt", type: "uint40" },
+    ],
+    outputs: [],
+  },
+] as const;
