@@ -258,3 +258,35 @@ export const waneVaultAbi = [
   },
   { type: "error", name: "NotOwner", inputs: [] },
 ] as const;
+
+// WaneVaultFactory: deploys one WaneVault per owner at a deterministic address.
+export const waneVaultFactoryAbi = [
+  {
+    type: "function",
+    name: "createVault",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [{ name: "vault", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "createVaultFor",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "vault", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "predict",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "vaultOf",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
