@@ -89,3 +89,39 @@ export const DEPLOYMENTS = {
     vaultFactory: Address | null;
   },
 } as const;
+
+export enum ThreatKind {
+  Address = 0,
+  CallPattern = 1,
+  Bytecode = 2,
+  Semantic = 3,
+}
+
+export type Verdict = {
+  flagged: boolean;
+  antibodyId: bigint;
+  kind: ThreatKind;
+  subject: Hex;
+};
+
+export type MintedAntibody = {
+  id: bigint;
+  kind: ThreatKind;
+  subject: Hex;
+  publisher: Address;
+  evidence: Hex;
+  blockNumber: bigint;
+  txHash: Hex;
+};
+
+export type WaneConfig = {
+  registry: Address;
+  token?: Address; // required only for report()
+  policy?: Address; // required only for per-agent policy checks
+  delegate?: Address; // required only for the 7702 protection path (enable/send/wrap)
+  vaultFactory?: Address; // required only for the vault (smart-wallet) path
+  agent?: Address; // this bot's address, for policy checks
+  rpcUrl?: string;
+  publicClient?: PublicClient;
+  chain?: Chain;
+};
