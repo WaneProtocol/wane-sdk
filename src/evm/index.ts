@@ -125,3 +125,64 @@ export type WaneConfig = {
   publicClient?: PublicClient;
   chain?: Chain;
 };
+
+export const POLICY_REASON = [
+  "allowed",
+  "blocklisted",
+  "flagged by antibody",
+  "over per-tx cap",
+  "over daily cap",
+  "paused (kill switch)",
+  "globally denied recipient",
+  "policy expired",
+  "selector not allowed",
+  "token not allowed",
+] as const;
+
+export type PolicyVerdict = { allowed: boolean; reason: number; reasonText: string };
+
+const CLEAN: Omit<Verdict, "kind" | "subject"> = {
+  flagged: false,
+  antibodyId: 0n,
+};
+
+export class Wane {
+  readonly registry: Address;
+  readonly token?: Address;
+  readonly policy?: Address;
+  readonly delegate?: Address;
+  readonly vaultFactory?: Address;
+  readonly agent?: Address;
+  private readonly pc: PublicClient;
+  private readonly chain: any;
+
+  constructor(cfg: WaneConfig) {
+    this.registry = cfg.registry;
+    this.token = cfg.token;
+    this.policy = cfg.policy;
+    this.delegate = cfg.delegate;
+    this.vaultFactory = cfg.vaultFactory;
+    this.agent = cfg.agent;
+    this.chain = cfg.chain ?? baseSepolia;
+    this.pc = (cfg.publicClient ??
+      createPublicClient({
+        chain: this.chain,
+        transport: http(cfg.rpcUrl),
+      })) as PublicClient;
+  }
+
+  /* ── zero-config factories: no address pasting ───────────────────── */
+
+  /** Wane wired to the Base Sepolia deployment. Pass `agent` for policy/7702. */
+  static baseSepolia(cfg: Partial<WaneConfig> & { agent?: Address } = {}): Wane {
+    const d = DEPLOYMENTS.baseSepolia;
+    return new Wane({
+      registry: d.registry,
+      policy: d.policy,
+      delegate: d.delegate,
+      token: d.token,
+      vaultFactory: d.vaultFactory ?? undefined,
+      chain: d.chain,
+      ...cfg,
+    });
+  }
