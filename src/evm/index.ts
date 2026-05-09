@@ -186,3 +186,63 @@ export class Wane {
       ...cfg,
     });
   }
+
+  /** Wane wired to the Base mainnet deployment (available once deployed). */
+  static base(cfg: Partial<WaneConfig> & { agent?: Address } = {}): Wane {
+    const d = DEPLOYMENTS.base;
+    if (!d) {
+      throw new Error("Wane is not deployed on Base mainnet yet. Use Wane.baseSepolia() for now.");
+    }
+    return new Wane({
+      registry: d.registry,
+      policy: d.policy,
+      delegate: d.delegate,
+      token: d.token,
+      vaultFactory: d.vaultFactory ?? undefined,
+      chain: d.chain,
+      ...cfg,
+    });
+  }
+
+  /* ── read path: call this before you sign. reading is immunity. ──── */
+
+  /** Is this address covered by an active antibody? Free view call.
+   *  The target is normalized (getAddress) so any casing/checksum works. */
+  async checkAddress(target: Address): Promise<Verdict> {
+    const addr = getAddress(target);
+    const [flagged, id] = (await this.pc.readContract({
+      address: this.registry,
+      abi: waneRegistryAbi,
+      functionName: "checkAddress",
+      args: [addr],
+    })) as [boolean, bigint];
+    return {
+      ...CLEAN,
+      flagged,
+      antibodyId: id,
+      kind: ThreatKind.Address,
+      subject: pad(addr),
+    };
+  }
+
+  /** Is this contract codehash flagged? Catches re-deployed drainers. */
+  async checkBytecode(codehash: Hex): Promise<Verdict> {
+    const [flagged, id] = (await this.pc.readContract({
+      address: this.registry,
+      abi: waneRegistryAbi,
+      functionName: "checkBytecode",
+      args: [codehash],
+    })) as [boolean, bigint];
+    return { ...CLEAN, flagged, antibodyId: id, kind: ThreatKind.Bytecode, subject: codehash };
+  }
+
+  /** Generic check by kind + subject. */
+  async check(kind: ThreatKind, subject: Hex): Promise<Verdict> {
+    const [flagged, id] = (await this.pc.readContract({
+      address: this.registry,
+      abi: waneRegistryAbi,
+      functionName: "check",
+      args: [kind, subject],
+    })) as [boolean, bigint];
+    return { ...CLEAN, flagged, antibodyId: id, kind, subject };
+  }
