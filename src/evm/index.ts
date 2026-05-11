@@ -246,3 +246,71 @@ export class Wane {
     })) as [boolean, bigint];
     return { ...CLEAN, flagged, antibodyId: id, kind, subject };
   }
+
+  /**
+   * Guard helper. Throws if the target is flagged, so an agent can wrap any
+   * action in one call:  await wane.assertSafe(target)
+   */
+  async assertSafe(target: Address): Promise<void> {
+    const v = await this.checkAddress(target);
+    if (v.flagged) {
+      throw new WaneBlockedError(target, v.antibodyId);
+    }
+  }
+
+  /* ── herd-immunity feed: the swarm's shared memory, live ──────────── */
+
+  /** How many antibodies the registry knows right now. Free view. */
+  async count(): Promise<bigint> {
+    return (await this.pc.readContract({
+      address: this.registry,
+      abi: waneRegistryAbi,
+      functionName: "antibodyCount",
+    })) as bigint;
+  }
+
+  /**
+   * Recent antibodies, newest first. Reads `AntibodyMinted` logs, so it shows
+   * what the swarm learned lately, the "one bot got hit, now everyone sees it"
+   * feed.
+   *
+   * Scans backward in chunks (default 800 blocks) to stay under the block-range
+   * cap that public RPCs enforce, stopping once `limit` are found or `lookback`
+   * blocks are exhausted. `chunk` is configurable for archive RPCs.
+   */
+  async recent(
+    limit = 20,
+    opts: { lookback?: bigint; chunk?: bigint } = {},
+  ): Promise<MintedAntibody[]> {
+    const lookback = opts.lookback ?? 200_000n;
+    const chunk = opts.chunk ?? 800n;
+    const head = await this.pc.getBlockNumber();
+    const floor = head > lookback ? head - lookback : 0n;
+    const out: MintedAntibody[] = [];
+    let to = head;
+    while (to >= floor && out.length < limit) {
+      const from = to > chunk ? to - chunk : 0n;
+      const logs = await this.pc.getContractEvents({
+        address: this.registry,
+        abi: waneRegistryAbi,
+        eventName: "AntibodyMinted",
+        fromBlock: from < floor ? floor : from,
+        toBlock: to,
+      });
+      for (const l of logs.reverse() as any[]) {
+        out.push({
+          id: l.args?.id as bigint,
+          kind: Number(l.args?.kind ?? 0) as ThreatKind,
+          subject: l.args?.subject as Hex,
+          publisher: l.args?.publisher as Address,
+          evidence: l.args?.evidence as Hex,
+          blockNumber: l.blockNumber as bigint,
+          txHash: l.transactionHash as Hex,
+        });
+        if (out.length >= limit) break;
+      }
+      if (from === 0n) break;
+      to = from - 1n;
+    }
+    return out.sort((a, b) => (b.blockNumber > a.blockNumber ? 1 : -1)).slice(0, limit);
+  }
