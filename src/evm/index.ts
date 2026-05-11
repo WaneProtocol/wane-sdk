@@ -314,3 +314,57 @@ export class Wane {
     }
     return out.sort((a, b) => (b.blockNumber > a.blockNumber ? 1 : -1)).slice(0, limit);
   }
+
+  /**
+   * Subscribe to new antibodies as they are minted, the live herd-immunity
+   * stream. Your agent reacts the instant another agent reports a threat. Returns
+   * an unsubscribe function.
+   *
+   *   const stop = wane.watch((ab) => myDenyCache.add(ab.subject));
+   */
+  watch(
+    onAntibody: (ab: MintedAntibody) => void,
+    opts: { onError?: (err: Error) => void } = {},
+  ): () => void {
+    return this.pc.watchContractEvent({
+      address: this.registry,
+      abi: waneRegistryAbi,
+      eventName: "AntibodyMinted",
+      onLogs: (logs: any[]) => {
+        for (const l of logs) {
+          onAntibody({
+            id: l.args?.id as bigint,
+            kind: Number(l.args?.kind ?? 0) as ThreatKind,
+            subject: l.args?.subject as Hex,
+            publisher: l.args?.publisher as Address,
+            evidence: l.args?.evidence as Hex,
+            blockNumber: l.blockNumber as bigint,
+            txHash: l.transactionHash as Hex,
+          });
+        }
+      },
+      onError: opts.onError,
+    });
+  }
+
+  /* ── policy path: full per-agent scope (caps, kill switch, TTL, lists) ── */
+
+  /**
+   * Evaluate an action against this agent's on-chain policy AND the antibody
+   * registry. Pass a function selector to also enforce the selector allowlist
+   * and call-pattern antibodies. Free view call. Requires config.policy + agent.
+   */
+  async checkPolicy(target: Address, amount: bigint = 0n, selector?: Hex): Promise<PolicyVerdict> {
+    if (!this.policy || !this.agent) {
+      throw new Error("checkPolicy needs config.policy and config.agent");
+    }
+    const useCall = !!selector && selector !== "0x00000000";
+    const tgt = getAddress(target);
+    const [allowed, reason] = (await this.pc.readContract({
+      address: this.policy,
+      abi: wanePolicyAbi,
+      functionName: useCall ? "evaluateCall" : "evaluate",
+      args: useCall ? [this.agent, tgt, selector, amount] : [this.agent, tgt, amount],
+    })) as [boolean, number];
+    return { allowed, reason, reasonText: POLICY_REASON[reason] ?? `reason ${reason}` };
+  }
