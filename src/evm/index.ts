@@ -368,3 +368,60 @@ export class Wane {
     })) as [boolean, number];
     return { allowed, reason, reasonText: POLICY_REASON[reason] ?? `reason ${reason}` };
   }
+
+  /**
+   * Guard helper. Throws WaneBlockedError if the policy would block the action.
+   * Wrap any agent action: await wane.guard(target, amount, selector).
+   */
+  async guard(target: Address, amount: bigint = 0n, selector?: Hex): Promise<void> {
+    const v = await this.checkPolicy(target, amount, selector);
+    if (!v.allowed) {
+      const e = new WaneBlockedError(target, 0n);
+      e.message = `Wane policy blocked ${target}: ${v.reasonText}.`;
+      throw e;
+    }
+  }
+
+  /** Is a token allowed for this agent under its token allowlist? */
+  async isTokenAllowed(token: Address): Promise<boolean> {
+    if (!this.policy || !this.agent) return true;
+    return (await this.pc.readContract({
+      address: this.policy,
+      abi: wanePolicyAbi,
+      functionName: "isTokenAllowed",
+      args: [this.agent, token],
+    })) as boolean;
+  }
+
+  /* ── the automatic loop: guard, run, and auto-report on attack ────── */
+
+  /**
+   * Wrap a bot action so immunity is automatic end to end:
+   *   1. guard the target against policy + antibodies before running
+   *   2. run the action
+   *   3. if it reverts/throws in a way that looks like a drain, AND a wallet
+   *      is configured, mint an antibody so every other agent is immune next.
+   *
+   * This is the "one bot gets drained, every bot gets immune" loop with no
+   * human in it. The bot reports itself.
+   *
+   * @returns the action result on success
+   */
+  async protect<T>(
+    target: Address,
+    action: () => Promise<T>,
+    opts: {
+      amount?: bigint;
+      selector?: Hex;
+      wallet?: WaneWallet; // needed to auto-report
+      isAttack?: (err: unknown) => boolean; // classify a failure as an attack
+      kind?: ThreatKind;
+    } = {},
+  ): Promise<T> {
+    // 1. pre-flight guard (throws WaneBlockedError if already known-bad).
+    //    Always check the antibody registry; additionally apply the per-agent
+    //    policy when one is configured. Antibodies protect even unenrolled bots.
+    await this.assertSafe(target);
+    if (this.policy && this.agent) {
+      await this.guard(target, opts.amount ?? 0n, opts.selector);
+    }
