@@ -425,3 +425,64 @@ export class Wane {
     if (this.policy && this.agent) {
       await this.guard(target, opts.amount ?? 0n, opts.selector);
     }
+
+    // 2. run
+    try {
+      return await action();
+    } catch (err) {
+      // 3. auto-report novel threats
+      const looksLikeAttack = opts.isAttack ? opts.isAttack(err) : defaultIsAttack(err);
+      if (looksLikeAttack && this.token && opts.wallet) {
+        try {
+          await this.report(opts.wallet, {
+            kind: opts.kind ?? ThreatKind.Address,
+            subject: addressSubject(target),
+            evidence: keccak256(
+              encodePacked(["string"], [String((err as Error)?.message ?? "attack")]),
+            ),
+          });
+        } catch {
+          // reporting is best-effort; never mask the original error
+        }
+      }
+      throw err;
+    }
+  }
+
+  /* ── 7702 protection path: one sign, then every send is screened ──── */
+
+  /**
+   * Is this account currently protected? True when its on-chain code is the
+   * 7702 delegation indicator pointing at our WaneDelegate. Free view.
+   */
+  async isProtected(account?: Address): Promise<boolean> {
+    if (!this.delegate) return false;
+    const who = account ?? this.agent;
+    if (!who) throw new Error("isProtected needs an account or config.agent");
+    const code = (await this.pc.getCode({ address: who })) ?? "0x";
+    const want = (DELEGATION_PREFIX + this.delegate.slice(2)).toLowerCase();
+    return code.toLowerCase() === want;
+  }
+
+  /**
+   * Turn protection on for an agent's own wallet. ONE signature.
+   *
+   *   1. signs an EIP-7702 authorization pointing the wallet's code at
+   *      WaneDelegate, and sends the type-0x04 set-code tx
+   *   2. (optional, default true) enrolls the wallet in WanePolicy so caps /
+   *      kill-switch / kinds apply on top of the global antibody registry
+   *
+   * After this, route actions through `send()` / `wrap()` and each one is
+   * screened on-chain before it runs. The wallet keeps its address, funds, and
+   * keys; the delegate can only block, never move funds.
+   */
+  async enable(
+    wallet: WaneWallet,
+    opts: { enroll?: boolean; blockKinds?: number; perTxCap?: bigint; dailyCap?: bigint } = {},
+  ): Promise<{ setCodeTx: Hex; enrollTx?: Hex; alreadyProtected: boolean }> {
+    if (!this.delegate) throw new Error("enable() requires config.delegate");
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    if (!wallet.signAuthorization || !wallet.sendTransaction) {
+      throw new Error("wallet must support signAuthorization + sendTransaction (EIP-7702)");
+    }
