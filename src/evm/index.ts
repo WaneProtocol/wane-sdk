@@ -554,3 +554,67 @@ export class Wane {
     })) as [boolean, number];
     return { allowed, reason, reasonText: POLICY_REASON[reason] ?? `reason ${reason}` };
   }
+
+  /**
+   * Send a single action THROUGH the delegate's screen. This is the protected
+   * replacement for walletClient.sendTransaction: the tx calls the wallet's own
+   * execute(), which screens the target against antibodies + policy on-chain and
+   * reverts (Blocked) before any value moves if it is flagged.
+   *
+   * Requires the wallet to already be 7702-protected (call enable() once first).
+   * If it is not, this throws instead of silently sending an unscreened no-op.
+   */
+  async send(wallet: WaneWallet, call: WaneCall): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    if (!wallet.sendTransaction) throw new Error("wallet must support sendTransaction");
+    if (!this.delegate) throw new Error("send() requires config.delegate");
+
+    // Guard against the silent-failure trap: if the wallet is NOT delegated, a
+    // to=self call would hit an EOA with no code, ignore the execute() calldata,
+    // and just move value to itself, looking like success while screening nothing.
+    if (!(await this.isProtected(account.address))) {
+      throw new Error(
+        "wallet is not protected: call wane.enable(wallet) once before send(). " +
+          "Sending unscreened was refused.",
+      );
+    }
+
+    // pre-screen via the same on-chain view the delegate enforces, so a blocked
+    // action throws a clear WaneBlockedError up front and never spends a failed
+    // tx. The on-chain execute() still enforces regardless (defense in depth).
+    const v = await this.wouldAllow(call, account.address);
+    if (!v.allowed) throw blockedError(call.to, v.reasonText);
+
+    const data = encodeFunctionData({
+      abi: waneDelegateAbi,
+      functionName: "execute",
+      args: [getAddress(call.to), call.value ?? 0n, call.data ?? "0x"],
+    });
+    // to == self: invokes this wallet's own delegate code (execute), which screens.
+    try {
+      return await wallet.sendTransaction({
+        account,
+        to: account.address,
+        value: call.value ?? 0n,
+        data,
+        chain: this.chain,
+      });
+    } catch (err) {
+      throw decodeBlocked(err) ?? err;
+    }
+  }
+
+  /**
+   * Send several actions atomically through the screen. Any flagged target
+   * reverts the whole batch. Same protection and guards as send().
+   */
+  async sendBatch(wallet: WaneWallet, calls: WaneCall[]): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    if (!wallet.sendTransaction) throw new Error("wallet must support sendTransaction");
+    if (!this.delegate) throw new Error("sendBatch() requires config.delegate");
+    if (calls.length === 0) throw new Error("sendBatch() needs at least one call");
+    if (!(await this.isProtected(account.address))) {
+      throw new Error("wallet is not protected: call wane.enable(wallet) once before sendBatch().");
+    }
