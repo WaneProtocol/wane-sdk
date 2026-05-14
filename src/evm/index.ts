@@ -486,3 +486,71 @@ export class Wane {
     if (!wallet.signAuthorization || !wallet.sendTransaction) {
       throw new Error("wallet must support signAuthorization + sendTransaction (EIP-7702)");
     }
+
+    // skip the set-code tx if already pointing at our delegate
+    const already = await this.isProtected(account.address);
+    let setCodeTx: Hex;
+    if (already) {
+      setCodeTx = "0x" as Hex;
+    } else {
+      const auth = await wallet.signAuthorization({
+        account,
+        contractAddress: this.delegate,
+        executor: "self",
+      });
+      setCodeTx = await wallet.sendTransaction({
+        account,
+        to: account.address,
+        authorizationList: [auth],
+        data: "0x",
+        chain: this.chain,
+      });
+      await this.pc.waitForTransactionReceipt({ hash: setCodeTx });
+    }
+
+    let enrollTx: Hex | undefined;
+    if (opts.enroll !== false && this.policy) {
+      enrollTx = await wallet.writeContract({
+        address: this.policy,
+        abi: wanePolicyEnrollAbi,
+        functionName: "enroll",
+        args: [
+          account.address,
+          opts.blockKinds ?? 0,
+          0,
+          opts.perTxCap ?? 0n,
+          opts.dailyCap ?? 0n,
+          0,
+        ],
+        account,
+        chain: this.chain,
+      });
+      await this.pc.waitForTransactionReceipt({ hash: enrollTx });
+    }
+
+    return { setCodeTx, enrollTx, alreadyProtected: already };
+  }
+
+  /**
+   * Dry-run an action through the delegate's on-chain screen without sending.
+   * Returns whether it would be allowed and, if not, the reason. Free view.
+   *
+   * IMPORTANT: this is called AT the protected wallet's address, because the
+   * delegate keys its policy lookup on `address(this)` (the wallet itself under
+   * 7702). The wallet address is required: there is no safe default. Falling
+   * back to the delegate-contract address would evaluate an unenrolled account
+   * and silently return "allowed" for everything.
+   */
+  async wouldAllow(call: WaneCall, account?: Address): Promise<PolicyVerdict> {
+    if (!this.delegate) throw new Error("wouldAllow needs config.delegate");
+    const who = account ?? this.agent;
+    if (!who)
+      throw new Error("wouldAllow needs the protected wallet address (account or config.agent)");
+    const [allowed, reason] = (await this.pc.readContract({
+      address: who,
+      abi: waneDelegateAbi,
+      functionName: "wouldAllow",
+      args: [getAddress(call.to), call.value ?? 0n, call.data ?? "0x"],
+    })) as [boolean, number];
+    return { allowed, reason, reasonText: POLICY_REASON[reason] ?? `reason ${reason}` };
+  }
