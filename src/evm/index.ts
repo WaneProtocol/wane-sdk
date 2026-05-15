@@ -618,3 +618,54 @@ export class Wane {
     if (!(await this.isProtected(account.address))) {
       throw new Error("wallet is not protected: call wane.enable(wallet) once before sendBatch().");
     }
+
+    let total = 0n;
+    const targets: Address[] = [];
+    const values: bigint[] = [];
+    const datas: Hex[] = [];
+    for (const c of calls) {
+      // pre-screen every leg so the caller learns exactly which one is blocked
+      const v = await this.wouldAllow(c, account.address);
+      if (!v.allowed) throw blockedError(c.to, v.reasonText);
+      targets.push(getAddress(c.to));
+      values.push(c.value ?? 0n);
+      datas.push(c.data ?? "0x");
+      total += c.value ?? 0n;
+    }
+    const data = encodeFunctionData({
+      abi: waneDelegateAbi,
+      functionName: "executeBatch",
+      args: [targets, values, datas],
+    });
+    try {
+      return await wallet.sendTransaction({
+        account,
+        to: account.address,
+        value: total,
+        data,
+        chain: this.chain,
+      });
+    } catch (err) {
+      throw decodeBlocked(err) ?? err;
+    }
+  }
+
+  /**
+   * Drop-in wrapper. Returns an object whose `sendTransaction({to,value,data})`
+   * transparently routes through the Wane screen. An agent swaps one line:
+   *
+   *   const client = wane.wrap(walletClient)   // instead of walletClient
+   *   await client.sendTransaction({ to, value, data })  // now screened
+   *
+   * Anything not flagged behaves exactly as before; a flagged target throws
+   * a WaneBlockedError instead of draining the wallet.
+   */
+  wrap(wallet: WaneWallet): {
+    sendTransaction: (call: WaneCall) => Promise<Hex>;
+    sendBatch: (calls: WaneCall[]) => Promise<Hex>;
+  } {
+    return {
+      sendTransaction: (call: WaneCall) => this.send(wallet, call),
+      sendBatch: (calls: WaneCall[]) => this.sendBatch(wallet, calls),
+    };
+  }
