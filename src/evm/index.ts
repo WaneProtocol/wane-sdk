@@ -669,3 +669,74 @@ export class Wane {
       sendBatch: (calls: WaneCall[]) => this.sendBatch(wallet, calls),
     };
   }
+
+  /* ── write path: auto-publish a novel threat ─────────────────────── */
+
+  /**
+   * Report a novel threat. Idempotent against the registry (mint reverts on a
+   * live duplicate; we check first and skip). Requires a wallet + $WANE stake.
+   *
+   * Typical agent usage: after your own runtime detects a drain attempt that
+   * the registry does NOT yet know about, call report() so the next agent is
+   * immune. This is the "auto-publish on novel block" behavior.
+   */
+  async report(
+    wallet: WaneWallet,
+    opts: {
+      kind?: ThreatKind;
+      subject: Hex; // address (padded), codehash, or marker hash
+      evidence?: Hex; // hash of the proof (tx, payload). defaults to subject hash
+      autoApprove?: boolean; // approve $WANE stake first (default true)
+    },
+  ): Promise<{ skipped: boolean; txHash?: Hex; id?: bigint }> {
+    const kind = opts.kind ?? ThreatKind.Address;
+    const subject = opts.subject;
+
+    // skip if already known and active (reading is free)
+    const existing = await this.check(kind, subject);
+    if (existing.flagged) return { skipped: true };
+
+    if (!this.token) throw new Error("report() requires config.token ($WANE)");
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+
+    if (opts.autoApprove !== false) {
+      const stake = (await this.pc.readContract({
+        address: this.registry,
+        abi: waneRegistryAbi,
+        functionName: "mintStake",
+      })) as bigint;
+      const approveHash = await wallet.writeContract({
+        address: this.token,
+        abi: erc20ApproveAbi,
+        functionName: "approve",
+        args: [this.registry, stake],
+        account,
+        chain: this.chain,
+      });
+      await this.pc.waitForTransactionReceipt({ hash: approveHash as Hex });
+    }
+
+    const evidence = opts.evidence ?? keccak256(encodePacked(["bytes32"], [subject]));
+    const txHash = await wallet.writeContract({
+      address: this.registry,
+      abi: waneRegistryAbi,
+      functionName: "mintAntibody",
+      args: [kind, subject, evidence],
+      account,
+      chain: this.chain,
+    });
+    const receipt = await this.pc.waitForTransactionReceipt({ hash: txHash });
+    let id: bigint | undefined;
+    try {
+      const logs = parseEventLogs({
+        abi: waneRegistryAbi,
+        eventName: "AntibodyMinted",
+        logs: receipt.logs,
+      }) as Array<{ args: { id: bigint } }>;
+      id = logs[0]?.args?.id;
+    } catch {
+      // id is best-effort
+    }
+    return { skipped: false, txHash, id };
+  }
