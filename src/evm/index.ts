@@ -740,3 +740,59 @@ export class Wane {
     }
     return { skipped: false, txHash, id };
   }
+
+  /* ── vault path: a non-custodial screening smart wallet ───────────── */
+  /* Stronger than 7702: funds live in the vault, so there is no raw-send    */
+  /* bypass, and ERC-20 recipients decoded from calldata are screened too.   */
+
+  private vaultFactoryAddr(): Address {
+    if (!this.vaultFactory) {
+      throw new Error("WaneVaultFactory is not configured for this network yet.");
+    }
+    return this.vaultFactory;
+  }
+
+  /** Deterministic vault address for an owner, whether or not it exists yet. */
+  async predictVault(owner: Address): Promise<Address> {
+    return (await this.pc.readContract({
+      address: this.vaultFactoryAddr(),
+      abi: waneVaultFactoryAbi,
+      functionName: "predict",
+      args: [getAddress(owner)],
+    })) as Address;
+  }
+
+  /** The owner's created vault, or the zero address if not created yet. */
+  async vaultOf(owner: Address): Promise<Address> {
+    return (await this.pc.readContract({
+      address: this.vaultFactoryAddr(),
+      abi: waneVaultFactoryAbi,
+      functionName: "vaultOf",
+      args: [getAddress(owner)],
+    })) as Address;
+  }
+
+  /** Create the caller's vault (one-time). Returns the create tx hash. */
+  async createVault(wallet: WaneWallet): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    return wallet.writeContract({
+      address: this.vaultFactoryAddr(),
+      abi: waneVaultFactoryAbi,
+      functionName: "createVault",
+      args: [],
+      account,
+      chain: this.chain,
+    });
+  }
+
+  /** Dry-run the vault's on-chain screen for an action. Free view. */
+  async vaultWouldAllow(vault: Address, call: WaneCall): Promise<PolicyVerdict> {
+    const [allowed, reason] = (await this.pc.readContract({
+      address: vault,
+      abi: waneVaultAbi,
+      functionName: "wouldAllow",
+      args: [getAddress(call.to), call.value ?? 0n, call.data ?? "0x"],
+    })) as [boolean, number];
+    return { allowed, reason, reasonText: POLICY_REASON[reason] ?? `reason ${reason}` };
+  }
