@@ -885,3 +885,58 @@ export function waneActions(wane: Wane) {
     };
   };
 }
+
+/** helper to turn a plain address into the bytes32 subject form */
+export function addressSubject(a: Address): Hex {
+  return pad(a);
+}
+
+/** Build a WaneBlockedError with a clear, single-line message. */
+function blockedError(target: Address, reasonText: string): WaneBlockedError {
+  const e = new WaneBlockedError(target, 0n);
+  e.message = `Wane blocked ${target}: ${reasonText}.`;
+  return e;
+}
+
+/**
+ * Best-effort: pull a delegate `Blocked(target, reason)` revert out of a thrown
+ * viem error and turn it into a clean WaneBlockedError. Covers the rare case
+ * where on-chain state changes between the pre-screen and the send (TOCTOU), so
+ * even the enforced-on-chain revert surfaces a readable error. Returns
+ * undefined if the error is not a recognizable Blocked revert.
+ */
+function decodeBlocked(err: unknown): WaneBlockedError | undefined {
+  const datas: Hex[] = [];
+  const collect = (e: any) => {
+    const d = e?.data;
+    if (typeof d === "string" && d.startsWith("0x") && d.length >= 10) datas.push(d as Hex);
+    else if (d && typeof d.data === "string") datas.push(d.data as Hex);
+  };
+  if (err instanceof BaseError) {
+    err.walk((e) => {
+      collect(e);
+      return false;
+    });
+  } else {
+    collect(err);
+  }
+  for (const data of datas) {
+    try {
+      const decoded = decodeErrorResult({ abi: waneDelegateAbi, data });
+      if (decoded.errorName === "Blocked") {
+        const [target, reason] = decoded.args as [Address, number];
+        return blockedError(target, POLICY_REASON[reason] ?? `reason ${reason}`);
+      }
+      if (decoded.errorName === "NotSelf") {
+        const e = new WaneBlockedError("0x0000000000000000000000000000000000000000", 0n);
+        e.message =
+          "Wane: only the wallet itself may drive its delegate (NotSelf). " +
+          "Route sends through wane.send/wrap from the wallet's own account.";
+        return e;
+      }
+    } catch {
+      // not a delegate error; keep scanning
+    }
+  }
+  return undefined;
+}
