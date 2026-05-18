@@ -796,3 +796,92 @@ export class Wane {
     })) as [boolean, number];
     return { allowed, reason, reasonText: POLICY_REASON[reason] ?? `reason ${reason}` };
   }
+
+  /**
+   * Send a screened action FROM the vault's own balance. The vault checks the
+   * target (and, for ERC-20 movements, the real recipient decoded from calldata)
+   * against the owner's policy + the antibody registry, and reverts before any
+   * value moves if flagged. Funds held in the vault have no unscreened exit.
+   */
+  async vaultSend(wallet: WaneWallet, vault: Address, call: WaneCall): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    const v = await this.vaultWouldAllow(vault, call);
+    if (!v.allowed) throw blockedError(call.to, v.reasonText);
+    try {
+      return await wallet.writeContract({
+        address: vault,
+        abi: waneVaultAbi,
+        functionName: "execute",
+        args: [getAddress(call.to), call.value ?? 0n, call.data ?? "0x"],
+        account,
+        chain: this.chain,
+      });
+    } catch (err) {
+      throw decodeVaultBlocked(err) ?? err;
+    }
+  }
+
+  /** Owner withdraws funds back to themselves (unscreened; never trapped). */
+  async vaultWithdraw(
+    wallet: WaneWallet,
+    vault: Address,
+    opts: { token?: Address; amount: bigint },
+  ): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    return wallet.writeContract({
+      address: vault,
+      abi: waneVaultAbi,
+      functionName: opts.token ? "withdrawToken" : "withdrawETH",
+      args: opts.token ? [opts.token, opts.amount] : [opts.amount],
+      account,
+      chain: this.chain,
+    });
+  }
+}
+
+export class WaneBlockedError extends Error {
+  constructor(
+    public readonly target: string,
+    public readonly antibodyId: bigint,
+  ) {
+    super(`Wane: ${target} is flagged by antibody #${antibodyId}. Action aborted.`);
+    this.name = "WaneBlockedError";
+  }
+}
+
+/**
+ * viem-native adapter. Extend a wallet client so protection feels built in:
+ *
+ *   import { createWalletClient, http } from "viem";
+ *   import { Wane, waneActions } from "wane-sdk";
+ *
+ *   const wane = Wane.baseSepolia({ agent: account.address });
+ *   const wallet = createWalletClient({ account, chain, transport: http() })
+ *     .extend(waneActions(wane));
+ *
+ *   await wallet.enableProtection();              // one signature
+ *   await wallet.protectedSend({ to, value });    // screened on-chain
+ *   await wallet.isProtected();                   // true
+ *
+ * Every flagged target throws WaneBlockedError before anything moves; a clean
+ * one behaves like a normal send.
+ */
+export function waneActions(wane: Wane) {
+  return (client: any) => {
+    const w = client as WaneWallet;
+    const self = (): Address => {
+      const a = client.account?.address as Address | undefined;
+      if (!a) throw new Error("wallet client has no account");
+      return a;
+    };
+    return {
+      enableProtection: (opts?: Parameters<Wane["enable"]>[1]) => wane.enable(w, opts),
+      protectedSend: (call: WaneCall) => wane.send(w, call),
+      protectedBatch: (calls: WaneCall[]) => wane.sendBatch(w, calls),
+      isProtected: () => wane.isProtected(self()),
+      wouldAllow: (call: WaneCall) => wane.wouldAllow(call, self()),
+    };
+  };
+}
