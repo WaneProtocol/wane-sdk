@@ -940,3 +940,49 @@ function decodeBlocked(err: unknown): WaneBlockedError | undefined {
   }
   return undefined;
 }
+
+/** Decode a WaneVault Blocked(target, reason) / NotOwner revert into a clean error. */
+function decodeVaultBlocked(err: unknown): WaneBlockedError | undefined {
+  const datas: Hex[] = [];
+  const collect = (e: any) => {
+    const d = e?.data;
+    if (typeof d === "string" && d.startsWith("0x") && d.length >= 10) datas.push(d as Hex);
+    else if (d && typeof d.data === "string") datas.push(d.data as Hex);
+  };
+  if (err instanceof BaseError) err.walk((e) => (collect(e), false));
+  else collect(err);
+  for (const data of datas) {
+    try {
+      const decoded = decodeErrorResult({ abi: waneVaultAbi, data });
+      if (decoded.errorName === "Blocked") {
+        const [target, reason] = decoded.args as [Address, number];
+        return blockedError(target, POLICY_REASON[reason] ?? `reason ${reason}`);
+      }
+      if (decoded.errorName === "NotOwner") {
+        const e = new WaneBlockedError("0x0000000000000000000000000000000000000000", 0n);
+        e.message = "Wane: only the vault owner may drive it (NotOwner).";
+        return e;
+      }
+    } catch {
+      // not a vault error; keep scanning
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Default heuristic for "this failure looks like an attack worth reporting".
+ * Conservative: only flags signals that a tool tried to move funds or inject.
+ * Integrators should pass their own opts.isAttack for precise classification.
+ */
+function defaultIsAttack(err: unknown): boolean {
+  const m = (err as Error)?.message?.toLowerCase() ?? "";
+  return (
+    m.includes("unexpected transfer") ||
+    m.includes("unauthorized") ||
+    m.includes("drain") ||
+    m.includes("approval") ||
+    m.includes("injected") ||
+    m.includes("tool poisoning")
+  );
+}
