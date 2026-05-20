@@ -30,3 +30,34 @@ export enum ThreatKind {
   Bytecode = 2,
   Semantic = 3,
 }
+
+/** The chains this SDK can talk to. */
+export type WaneChain = "base" | "base-sepolia" | "solana" | "solana-devnet";
+
+/**
+ * Cross-chain entry point. Each factory returns the chain-native client (the
+ * one with the full surface for that runtime), so callers get real types, not a
+ * lowest-common-denominator wrapper. Pick the factory for the chain you are on.
+ */
+export const Wane = {
+  /** Base mainnet client (viem). Throws until the mainnet deployment is live. */
+  base(cfg: Parameters<typeof evm.Wane.base>[0] = {}): evm.Wane {
+    return evm.Wane.base(cfg);
+  },
+  /** Base Sepolia client (viem). */
+  baseSepolia(cfg: Parameters<typeof evm.Wane.baseSepolia>[0] = {}): evm.Wane {
+    return evm.Wane.baseSepolia(cfg);
+  },
+  /** Solana mainnet client (@solana/web3.js). */
+  solana(): solana.Wane {
+    return solana.Wane.mainnet();
+  },
+  /** Solana devnet client (@solana/web3.js). */
+  solanaDevnet(): solana.Wane {
+    return solana.Wane.devnet();
+  },
+} as const;
+
+/** Convenience: the chain-native client type returned by each factory. */
+export type WaneEvm = evm.Wane;
+export type WaneSolana = solana.Wane;
