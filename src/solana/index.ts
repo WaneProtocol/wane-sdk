@@ -179,3 +179,44 @@ export class Wane {
     const flagged = ab.status !== Status.Revoked;
     return { flagged, antibody: ab };
   }
+
+  /** Throw WaneBlockedError if the target is flagged. One-liner guard before signing. */
+  async assertSafe(target: PublicKey): Promise<void> {
+    const v = await this.checkAddress(target);
+    if (v.flagged) throw new WaneBlockedError(target);
+  }
+
+  /** Total antibodies known to the registry. */
+  async count(): Promise<bigint> {
+    const acc = await this.connection.getAccountInfo(configPda());
+    if (!acc) return 0n;
+    // RegistryConfig: 8 disc + 5 pubkeys(160) + antibody_count u64
+    return Buffer.from(acc.data).readBigUInt64LE(8 + 160);
+  }
+
+  // ---------- REPORT (mint an antibody so others are immune) ----------
+
+  /** Report a new threat. Stakes $WANE (publisher_ata must hold it). */
+  async reportIx(
+    publisher: PublicKey,
+    publisherAta: PublicKey,
+    stakeVault: PublicKey,
+    kind: ThreatKind,
+    subject: Buffer,
+    evidence: Buffer = Buffer.alloc(32),
+  ): Promise<TransactionInstruction> {
+    const data = Buffer.concat([disc("mint_antibody"), Buffer.from([kind]), subject, evidence]);
+    return new TransactionInstruction({
+      programId: REGISTRY_PROGRAM,
+      keys: [
+        { pubkey: publisher, isSigner: true, isWritable: true },
+        { pubkey: configPda(), isSigner: false, isWritable: true },
+        { pubkey: antibodyPda(kind, subject), isSigner: false, isWritable: true },
+        { pubkey: publisherAta, isSigner: false, isWritable: true },
+        { pubkey: stakeVault, isSigner: false, isWritable: true },
+        { pubkey: SPL_TOKEN, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data,
+    });
+  }
