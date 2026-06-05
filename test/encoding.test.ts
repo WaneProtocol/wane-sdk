@@ -26,3 +26,29 @@ const {
 function disc(name: string): string {
   return createHash("sha256").update(`global:${name}`).digest().subarray(0, 8).toString("hex");
 }
+
+describe("solana anchor discriminators", () => {
+  const names = [
+    "init_config",
+    "mint_antibody",
+    "corroborate",
+    "seed_genesis",
+    "challenge",
+    "resolve",
+    "claim_rewards",
+    "update_config",
+    "set_registry_paused",
+    "nominate_governor",
+    "accept_governor",
+    "enroll",
+    "deposit",
+    "wane_execute",
+    "withdraw",
+    "update_policy",
+  ];
+
+  it("are each exactly 8 bytes (16 hex chars)", () => {
+    for (const n of names) {
+      expect(disc(n)).toHaveLength(16);
+    }
+  });
