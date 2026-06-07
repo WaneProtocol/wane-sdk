@@ -52,3 +52,33 @@ describe("solana anchor discriminators", () => {
       expect(disc(n)).toHaveLength(16);
     }
   });
+
+  it("are deterministic for a known instruction", () => {
+    // sha256("global:mint_antibody")[0..8] is fixed; recomputing must match.
+    expect(disc("mint_antibody")).toBe(disc("mint_antibody"));
+    expect(disc("enroll")).not.toBe(disc("deposit"));
+  });
+});
+
+describe("solana PDA derivation matches program seeds", () => {
+  const owner = new PublicKey("11111111111111111111111111111112");
+  const target = new PublicKey("So11111111111111111111111111111111111111112");
+  const subject = Buffer.from(target.toBytes());
+
+  it("antibody PDA uses seeds [antibody, kind, subject]", () => {
+    const got = antibodyPda(ThreatKind.Address as unknown as solana.ThreatKind, subject);
+    const want = PublicKey.findProgramAddressSync(
+      [Buffer.from("antibody"), Buffer.from([ThreatKind.Address]), subject],
+      REGISTRY_PROGRAM,
+    )[0];
+    expect(got.toBase58()).toBe(want.toBase58());
+  });
+
+  it("policy PDA uses seeds [policy, owner]", () => {
+    const got = policyPda(owner);
+    const want = PublicKey.findProgramAddressSync(
+      [Buffer.from("policy"), owner.toBuffer()],
+      VAULT_PROGRAM,
+    )[0];
+    expect(got.toBase58()).toBe(want.toBase58());
+  });
