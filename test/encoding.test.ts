@@ -110,3 +110,31 @@ describe("solana instruction builders target the right program and account count
     expect(ix.programId.toBase58()).toBe(VAULT_PROGRAM.toBase58());
     expect(ix.keys).toHaveLength(4);
   });
+
+  it("depositIx hits the vault program", () => {
+    const ix = w.depositIx(owner, 10_000_000_000n);
+    expect(ix.programId.toBase58()).toBe(VAULT_PROGRAM.toBase58());
+  });
+
+  it("sendIx binds the antibody account to the destination PDA (non-bypassable)", () => {
+    const ix = w.sendIx(owner, target, 1_000_000_000n);
+    const ab = antibodyPda(
+      ThreatKind.Address as unknown as solana.ThreatKind,
+      Buffer.from(target.toBytes()),
+    );
+    expect(ix.keys).toHaveLength(8);
+    expect(ix.keys[3].pubkey.toBase58()).toBe(target.toBase58());
+    expect(ix.keys[5].pubkey.toBase58()).toBe(ab.toBase58());
+  });
+
+  it("withdrawIx and updatePolicyIx have the expected account counts", () => {
+    expect(w.withdrawIx(owner, 2_000_000_000n).keys).toHaveLength(4);
+    expect(w.updatePolicyIx(owner, { perTxCap: 10_000_000_000n }).keys).toHaveLength(2);
+  });
+});
+
+describe("evm address subject encoding", () => {
+  // Lowercase input, mixed-case checksum input, and the canonical checksum must
+  // all resolve to the same 32-byte left-padded subject the registry indexes on.
+  const lower = "0x1465e33f687c557bf275d6d692ec1316126d8e9e";
+  const checksum = getAddress(lower);
