@@ -82,3 +82,31 @@ describe("solana PDA derivation matches program seeds", () => {
     )[0];
     expect(got.toBase58()).toBe(want.toBase58());
   });
+
+  it("vault PDA uses seeds [vault, owner]", () => {
+    const got = vaultPda(owner);
+    const want = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), owner.toBuffer()],
+      VAULT_PROGRAM,
+    )[0];
+    expect(got.toBase58()).toBe(want.toBase58());
+  });
+
+  it("config PDA uses seed [config]", () => {
+    const got = configPda();
+    const want = PublicKey.findProgramAddressSync([Buffer.from("config")], REGISTRY_PROGRAM)[0];
+    expect(got.toBase58()).toBe(want.toBase58());
+  });
+});
+
+describe("solana instruction builders target the right program and account count", () => {
+  // No Connection is touched: instruction builders are pure.
+  const w = new SolWane({} as never);
+  const owner = new PublicKey("11111111111111111111111111111112");
+  const target = new PublicKey("So11111111111111111111111111111111111111112");
+
+  it("enrollIx hits the vault program with 4 accounts", () => {
+    const ix = w.enrollIx(owner, { blockKinds: 1, perTxCap: 5_000_000_000n });
+    expect(ix.programId.toBase58()).toBe(VAULT_PROGRAM.toBase58());
+    expect(ix.keys).toHaveLength(4);
+  });
