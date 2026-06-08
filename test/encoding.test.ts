@@ -138,3 +138,30 @@ describe("evm address subject encoding", () => {
   // all resolve to the same 32-byte left-padded subject the registry indexes on.
   const lower = "0x1465e33f687c557bf275d6d692ec1316126d8e9e";
   const checksum = getAddress(lower);
+
+  it("left-pads an address to a 32-byte bytes32 subject", () => {
+    const subject = evm.addressSubject(checksum as `0x${string}`);
+    expect(subject).toHaveLength(66); // 0x + 64 hex
+    expect(subject.toLowerCase().endsWith(lower.slice(2))).toBe(true);
+    // high 12 bytes are zero padding
+    expect(subject.slice(0, 26)).toBe("0x" + "00".repeat(12));
+  });
+
+  it("matches viem pad() and is casing-invariant on the address bytes", () => {
+    // addressSubject left-pads as-is, so checksum casing flows through, but the
+    // underlying 20 address bytes are identical regardless of input casing.
+    const fromChecksum = evm.addressSubject(checksum as `0x${string}`);
+    const fromLower = evm.addressSubject(lower as `0x${string}`);
+    expect(fromChecksum).toBe(pad(checksum));
+    expect(fromLower.toLowerCase()).toBe(fromChecksum.toLowerCase());
+  });
+
+  it("exposes the shared four-kind taxonomy with matching numeric values", () => {
+    expect(ThreatKind.Address).toBe(0);
+    expect(ThreatKind.CallPattern).toBe(1);
+    expect(ThreatKind.Bytecode).toBe(2);
+    expect(ThreatKind.Semantic).toBe(3);
+    expect(evm.ThreatKind.Bytecode).toBe(ThreatKind.Bytecode);
+    expect(solana.ThreatKind.Semantic).toBe(ThreatKind.Semantic);
+  });
+});
