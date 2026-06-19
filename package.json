@@ -31,7 +31,7 @@
   },
   "homepage": "https://revy.fun",
   "dependencies": {
-    "@lifi/sdk": "^3.16.3",
+    "@lifi/sdk": "^4.0.1",
     "@lifi/types": "^17.68.1",
     "@openzeppelin/contracts": "^5.6.1"
   },
