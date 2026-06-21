@@ -122,9 +122,11 @@ describe("solana instruction builders target the right program and account count
       ThreatKind.Address as unknown as solana.ThreatKind,
       Buffer.from(target.toBytes()),
     );
-    expect(ix.keys).toHaveLength(8);
-    expect(ix.keys[3].pubkey.toBase58()).toBe(target.toBase58());
-    expect(ix.keys[5].pubkey.toBase58()).toBe(ab.toBase58());
+    // session-key layout: [driver, owner, policy, vault, destination, config, antibody, registry, system]
+    expect(ix.keys).toHaveLength(9);
+    expect(ix.keys[0].isSigner).toBe(true); // driver (owner or session key) signs
+    expect(ix.keys[4].pubkey.toBase58()).toBe(target.toBase58());
+    expect(ix.keys[6].pubkey.toBase58()).toBe(ab.toBase58());
   });
 
   it("withdrawIx and updatePolicyIx have the expected account counts", () => {
