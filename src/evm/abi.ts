@@ -249,6 +249,39 @@ export const waneVaultAbi = [
     outputs: [{ name: "", type: "address" }],
   },
   {
+    type: "function",
+    name: "setSession",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "key", type: "address" },
+      { name: "expiry", type: "uint64" },
+      { name: "perTxCap", type: "uint128" },
+      { name: "dailyCap", type: "uint128" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "revokeSession",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "sessionActive",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "sessionKey",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
     type: "error",
     name: "Blocked",
     inputs: [
@@ -257,6 +290,10 @@ export const waneVaultAbi = [
     ],
   },
   { type: "error", name: "NotOwner", inputs: [] },
+  { type: "error", name: "NotDriver", inputs: [] },
+  { type: "error", name: "SessionExpired", inputs: [] },
+  { type: "error", name: "OverPerTxCap", inputs: [] },
+  { type: "error", name: "OverDailyCap", inputs: [] },
 ] as const;
 
 // WaneVaultFactory: deploys one WaneVault per owner at a deterministic address.

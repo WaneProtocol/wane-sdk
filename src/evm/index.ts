@@ -69,8 +69,8 @@ export const DEPLOYMENTS = {
     policy: "0x571Ac11310fb5d69D660C30f696a81e097Db8586" as Address,
     delegate: "0x6350D5850143277F7657549FB505569917641927" as Address,
     token: "0x1465E33f687C557BF275D6d692eC1316126d8e9e" as Address,
-    // WaneVaultFactory: filled once deployed on Sepolia
-    vaultFactory: null as Address | null,
+    // WaneVaultFactory (session-key vault), live on Base Sepolia
+    vaultFactory: "0xc6bA8b5A181e47a442ADB68F91F0607f74c635a3" as Address | null,
   },
   base: {
     chain: base,
@@ -78,8 +78,8 @@ export const DEPLOYMENTS = {
     policy: "0x26deE4503C7f67356837ED41cE285026EF256667" as Address,
     delegate: "0x9175d735D512d730510148ED4D6702eF99CF4901" as Address,
     token: "0x1465E33f687C557BF275D6d692eC1316126d8e9e" as Address,
-    // WaneVaultFactory, live on Base mainnet
-    vaultFactory: "0x6640dd13F172c356f671d35ef76695792908e2a9" as Address,
+    // WaneVaultFactory (session-key vault), live on Base mainnet
+    vaultFactory: "0x571Ac11310fb5d69D660C30f696a81e097Db8586" as Address,
   } as null | {
     chain: Chain;
     registry: Address;
@@ -838,6 +838,66 @@ export class Wane {
       account,
       chain: this.chain,
     });
+  }
+
+  /* ── session key: owner grants an agent a scoped key on the vault ──── */
+  /* The agent signs sends with this key (drive vaultSend from it). It can  */
+  /* only run screened execute within the caps/expiry, and can NEVER        */
+  /* withdraw or change the session. The owner can revoke it anytime.       */
+
+  /**
+   * Grant or replace the vault's scoped session key (owner only). The agent
+   * then drives `vaultSend` from `key`; every send is still screened and is
+   * bounded by perTxCap, a rolling dailyCap, and expiry (unix seconds).
+   * Pass key = zero address to clear it.
+   */
+  async setVaultSession(
+    wallet: WaneWallet,
+    vault: Address,
+    opts: { key: Address; expiry?: bigint; perTxCap?: bigint; dailyCap?: bigint },
+  ): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    return wallet.writeContract({
+      address: vault,
+      abi: waneVaultAbi,
+      functionName: "setSession",
+      args: [getAddress(opts.key), opts.expiry ?? 0n, opts.perTxCap ?? 0n, opts.dailyCap ?? 0n],
+      account,
+      chain: this.chain,
+    });
+  }
+
+  /** Revoke the vault's session key immediately (owner only). */
+  async revokeVaultSession(wallet: WaneWallet, vault: Address): Promise<Hex> {
+    const account = wallet.account;
+    if (!account) throw new Error("walletClient has no account");
+    return wallet.writeContract({
+      address: vault,
+      abi: waneVaultAbi,
+      functionName: "revokeSession",
+      args: [],
+      account,
+      chain: this.chain,
+    });
+  }
+
+  /** Is the vault's session key currently live (set + not expired)? Free view. */
+  async vaultSessionActive(vault: Address): Promise<boolean> {
+    return (await this.pc.readContract({
+      address: vault,
+      abi: waneVaultAbi,
+      functionName: "sessionActive",
+    })) as boolean;
+  }
+
+  /** The vault's current session key address (zero if none). Free view. */
+  async vaultSessionKey(vault: Address): Promise<Address> {
+    return (await this.pc.readContract({
+      address: vault,
+      abi: waneVaultAbi,
+      functionName: "sessionKey",
+    })) as Address;
   }
 }
 

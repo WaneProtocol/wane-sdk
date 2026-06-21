@@ -274,12 +274,18 @@ export class Wane {
    * cannot be slipped through by omitting or swapping it. The program reverts
    * before any lamport moves if the destination carries an enforceable antibody.
    */
-  sendIx(owner: PublicKey, destination: PublicKey, lamports: bigint): TransactionInstruction {
+  sendIx(
+    owner: PublicKey,
+    destination: PublicKey,
+    lamports: bigint,
+    driver?: PublicKey,
+  ): TransactionInstruction {
     const ab = antibodyPda(ThreatKind.Address, subjectOf(destination));
     return new TransactionInstruction({
       programId: VAULT_PROGRAM,
       keys: [
-        { pubkey: owner, isSigner: true, isWritable: true },
+        { pubkey: driver ?? owner, isSigner: true, isWritable: true }, // driver: owner OR session key
+        { pubkey: owner, isSigner: false, isWritable: false }, // owner, for PDA derivation
         { pubkey: policyPda(owner), isSigner: false, isWritable: true },
         { pubkey: vaultPda(owner), isSigner: false, isWritable: true },
         { pubkey: destination, isSigner: false, isWritable: true },
@@ -289,6 +295,30 @@ export class Wane {
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data: Buffer.concat([disc("wane_execute"), u64(lamports)]),
+    });
+  }
+
+  /** Owner: grant or replace the scoped agent session key. expiry = unix secs (0 clears). */
+  setSessionIx(owner: PublicKey, key: PublicKey, expiry: bigint): TransactionInstruction {
+    return new TransactionInstruction({
+      programId: VAULT_PROGRAM,
+      keys: [
+        { pubkey: owner, isSigner: true, isWritable: true },
+        { pubkey: policyPda(owner), isSigner: false, isWritable: true },
+      ],
+      data: Buffer.concat([disc("set_session"), Buffer.from(key.toBytes()), i64(expiry)]),
+    });
+  }
+
+  /** Owner: revoke the session key immediately. */
+  revokeSessionIx(owner: PublicKey): TransactionInstruction {
+    return new TransactionInstruction({
+      programId: VAULT_PROGRAM,
+      keys: [
+        { pubkey: owner, isSigner: true, isWritable: true },
+        { pubkey: policyPda(owner), isSigner: false, isWritable: true },
+      ],
+      data: disc("revoke_session"),
     });
   }
 
@@ -339,6 +369,21 @@ export class Wane {
   async send(owner: Signer, destination: PublicKey, lamports: bigint): Promise<string> {
     const ix = this.sendIx(owner.publicKey, destination, lamports);
     return this.submit([ix], owner, [owner]);
+  }
+
+  /**
+   * Convenience: an agent SESSION KEY drives a screened send. `owner` is the
+   * vault owner pubkey; `session` signs + pays. The send is bounded by the
+   * policy caps + the session expiry, and a flagged destination reverts.
+   */
+  async sendAsSession(
+    session: Signer,
+    owner: PublicKey,
+    destination: PublicKey,
+    lamports: bigint,
+  ): Promise<string> {
+    const ix = this.sendIx(owner, destination, lamports, session.publicKey);
+    return this.submit([ix], session, [session]);
   }
 
   async submit(ixs: TransactionInstruction[], payer: Signer, signers: Signer[]): Promise<string> {

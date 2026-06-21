@@ -24,3 +24,5 @@ id.json
 *.log
 .idea/
 .vscode/
+
+e2e_*.mjs
