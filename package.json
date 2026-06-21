@@ -1,6 +1,6 @@
 {
   "name": "wane-sdk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Unified Wane client for AI agents: read the on-chain antibody registry, report threats, and drive a screening session wallet across Base and Solana.",
   "type": "module",
   "main": "./dist/index.js",

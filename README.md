@@ -36,6 +36,7 @@ before any value moves. One package covers Base (viem) and Solana
 | Session wallet: enroll, deposit, screened send, withdraw | vault + 7702 | vault PDA |
 | EIP-7702 one-signature protection (`enable`, `send`, `wrap`) | stable | not applicable |
 | Non-custodial screening vault (`createVault`, `vaultSend`) | stable | session vault |
+| Agent session keys: scoped, capped, expiring, revocable | `setVaultSession` / `sendAsSession` | `set_session` / `sendAsSession` |
 | Auto-report loop (`protect`: guard, run, report on attack) | stable | manual |
 | Zero-config deployment factories (no address pasting) | stable | stable |
 
@@ -142,6 +143,43 @@ const res = await wane.report(wallet, {
 // { skipped: false, txHash: "0x...", id: 43n }   (skipped: true if already known)
 ```
 
+## Agent session keys
+
+The owner keeps the master key. The agent holds a separate session key that can
+only make screened sends within caps until it expires, and can never withdraw or
+change the vault. The owner can revoke it at any time.
+
+Owner grants a scoped key (Base):
+
+```ts
+import { Wane } from "wane-sdk";
+import { parseEther } from "viem";
+
+const wane = Wane.base();
+await wane.setVaultSession(ownerWallet, vault, {
+  key: agentAddress,                 // a fresh keypair the agent will hold
+  perTxCap: parseEther("0.001"),
+  expiry: BigInt(Math.floor(Date.now() / 1000) + 7 * 86400),
+});
+// revoke any time: await wane.revokeVaultSession(ownerWallet, vault)
+```
+
+The agent transacts with only the session key, never the master key:
+
+```ts
+import { privateKeyToAccount } from "viem/accounts";
+
+const session = privateKeyToAccount(process.env.WANE_SESSION_KEY);
+const agentWallet = createWalletClient({ account: session, chain: base, transport: http() });
+await wane.vaultSend(agentWallet, vault, { to, value });
+// screened and capped: reverts if the recipient is flagged or the amount is over cap
+```
+
+Solana is the same shape: `setSessionIx` (owner) then
+`sendAsSession(session, owner, to, lamports)` (agent). Full drop-in agents are in
+[`examples/agent-base.ts`](./examples/agent-base.ts) and
+[`examples/agent-solana.ts`](./examples/agent-solana.ts).
+
 ## Project structure
 
 ```
@@ -165,7 +203,7 @@ wane-sdk/
 │   └── solana/                  @solana/web3.js client (registry, session vault, PDAs)
 ├── test/
 │   └── encoding.test.ts         discriminators, PDA seeds, address subject encoding
-├── examples/                    base-check, base-protect, solana-session
+├── examples/                    base-check, base-protect, solana-session, agent-base, agent-solana
 └── docs/                        architecture, threat-model, deployments
 ```
 
@@ -174,7 +212,7 @@ wane-sdk/
 - **Base mainnet (8453)**: registry `0x027F371fB139A57EcD2A2E175d30157eEA1C56de`,
   policy `0x26deE4503C7f67356837ED41cE285026EF256667`,
   delegate `0x9175d735D512d730510148ED4D6702eF99CF4901`,
-  vault factory `0x6640dd13F172c356f671d35ef76695792908e2a9`,
+  vault factory `0x571Ac11310fb5d69D660C30f696a81e097Db8586`,
   token `0x1465E33f687C557BF275D6d692eC1316126d8e9e`
 - **Base Sepolia**: registry `0x027F371fB139A57EcD2A2E175d30157eEA1C56de`
 - **Solana**: registry `5Arj4zbFs5GigEGUSUb9hKNMYaPLqv1XgJXUcnGJ1wJH`,
