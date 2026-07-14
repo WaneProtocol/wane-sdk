@@ -22,7 +22,6 @@ import { createHash } from "crypto";
 
 export const REGISTRY_PROGRAM = new PublicKey("5Arj4zbFs5GigEGUSUb9hKNMYaPLqv1XgJXUcnGJ1wJH");
 export const VAULT_PROGRAM = new PublicKey("5YK7gMzkjUvLaxfNisMdtjRK4UeAiJBCSonB3GgrtTYh");
-const SPL_TOKEN = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
 export enum ThreatKind {
   Address = 0,
@@ -33,8 +32,8 @@ export enum ThreatKind {
 export enum Status {
   None = 0,
   Active = 1,
-  Challenged = 2,
-  Revoked = 3,
+  Revoked = 2,
+  Genesis = 3,
 }
 
 export interface Antibody {
@@ -155,9 +154,9 @@ export class Wane {
     const acc = await this.connection.getAccountInfo(pda);
     if (!acc) return { flagged: false, antibody: null };
     const ab = parseAntibody(Buffer.from(acc.data));
-    // enforceable = not revoked. (full maturity/corrob gating mirrors the program;
-    // genesis stake==0 and Challenged are always enforceable.)
-    const flagged = ab.status !== Status.Revoked;
+    // Active and Genesis antibodies flag; Revoked and None do not. Full
+    // maturity/corroboration gating mirrors the program's is_enforceable.
+    const flagged = ab.status === Status.Active || ab.status === Status.Genesis;
     return { flagged, antibody: ab };
   }
 
@@ -171,8 +170,8 @@ export class Wane {
   async count(): Promise<bigint> {
     const acc = await this.connection.getAccountInfo(configPda());
     if (!acc) return 0n;
-    // RegistryConfig: 8 disc + 5 pubkeys(160) + antibody_count u64
-    return Buffer.from(acc.data).readBigUInt64LE(8 + 160);
+    // RegistryConfig: 8 disc + 3 pubkeys(96) + antibody_count u64
+    return Buffer.from(acc.data).readBigUInt64LE(8 + 96);
   }
 
   // ---------- REPORT (mint an antibody so others are immune) ----------
