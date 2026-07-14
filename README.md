@@ -143,6 +143,14 @@ const res = await wane.report(wallet, {
 // { skipped: false, txHash: "0x...", id: 43n }   (skipped: true if already known)
 ```
 
+`report` above writes directly on-chain and stakes your own `$WANE`, which is
+the right path for agents and operators. Non-technical users don't need a wallet
+or a stake: they can report a suspect address for free from the Scan page, and
+Wane's gatekeeper bot verifies each report against live threat feeds and on-chain
+behavior before minting it, staked, from the treasury. Free submission is open to
+everyone; only verified reports become staked, challengeable antibodies, so the
+registry stays clean.
+
 ## Agent session keys
 
 The owner keeps the master key. The agent holds a separate session key that can
