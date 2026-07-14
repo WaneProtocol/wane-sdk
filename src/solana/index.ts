@@ -42,13 +42,10 @@ export interface Antibody {
   kind: number;
   status: number;
   publisher: PublicKey;
-  stake: bigint;
   mintedTs: bigint;
   corroborations: number;
   subject: Uint8Array;
   evidence: Uint8Array;
-  challenger: PublicKey;
-  challengeBond: bigint;
 }
 
 export interface Verdict {
@@ -111,6 +108,8 @@ export function vaultPda(owner: PublicKey): PublicKey {
 }
 
 function parseAntibody(data: Buffer): Antibody {
+  // stake-free layout: id u64, kind u8, status u8, publisher pk, minted_ts i64,
+  // corroborations u32, subject [32], evidence [32], bump u8
   let o = 8; // skip discriminator
   const id = data.readBigUInt64LE(o);
   o += 8;
@@ -120,8 +119,6 @@ function parseAntibody(data: Buffer): Antibody {
   o += 1;
   const publisher = new PublicKey(data.subarray(o, o + 32));
   o += 32;
-  const stake = data.readBigUInt64LE(o);
-  o += 8;
   const mintedTs = data.readBigInt64LE(o);
   o += 8;
   const corroborations = data.readUInt32LE(o);
@@ -130,23 +127,7 @@ function parseAntibody(data: Buffer): Antibody {
   o += 32;
   const evidence = Uint8Array.from(data.subarray(o, o + 32));
   o += 32;
-  const challenger = new PublicKey(data.subarray(o, o + 32));
-  o += 32;
-  const challengeBond = data.readBigUInt64LE(o);
-  o += 8;
-  return {
-    id,
-    kind,
-    status,
-    publisher,
-    stake,
-    mintedTs,
-    corroborations,
-    subject,
-    evidence,
-    challenger,
-    challengeBond,
-  };
+  return { id, kind, status, publisher, mintedTs, corroborations, subject, evidence };
 }
 
 /**
@@ -196,25 +177,25 @@ export class Wane {
 
   // ---------- REPORT (mint an antibody so others are immune) ----------
 
-  /** Report a new threat. Stakes $WANE (publisher_ata must hold it). */
-  async reportIx(
-    publisher: PublicKey,
-    publisherAta: PublicKey,
-    stakeVault: PublicKey,
+  /**
+   * Mint an antibody. Stake-free: the registry is governor-minted, so `governor`
+   * must be the registry's configured governor (the verification bot / multisig).
+   * End users don't call this; they submit a free report and the bot mints what
+   * it verifies. No token, no stake, no ATA.
+   */
+  mintAntibodyIx(
+    governor: PublicKey,
     kind: ThreatKind,
     subject: Buffer,
     evidence: Buffer = Buffer.alloc(32),
-  ): Promise<TransactionInstruction> {
+  ): TransactionInstruction {
     const data = Buffer.concat([disc("mint_antibody"), Buffer.from([kind]), subject, evidence]);
     return new TransactionInstruction({
       programId: REGISTRY_PROGRAM,
       keys: [
-        { pubkey: publisher, isSigner: true, isWritable: true },
+        { pubkey: governor, isSigner: true, isWritable: true },
         { pubkey: configPda(), isSigner: false, isWritable: true },
         { pubkey: antibodyPda(kind, subject), isSigner: false, isWritable: true },
-        { pubkey: publisherAta, isSigner: false, isWritable: true },
-        { pubkey: stakeVault, isSigner: false, isWritable: true },
-        { pubkey: SPL_TOKEN, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
