@@ -166,6 +166,54 @@ export class Wane {
     if (v.flagged) throw new WaneBlockedError(target);
   }
 
+  /**
+   * Check many addresses in one round trip. A transaction often touches several
+   * destinations; calling `checkAddress` per target is one RPC hit each. This
+   * derives every antibody PDA locally and fetches them with a single
+   * `getMultipleAccountsInfo`, so N targets cost one request (100 per batch,
+   * the RPC limit). Results are returned in input order.
+   */
+  async checkAddresses(targets: PublicKey[]): Promise<Verdict[]> {
+    if (targets.length === 0) return [];
+    const pdas = targets.map((t) => antibodyPda(ThreatKind.Address, subjectOf(t)));
+    const out: Verdict[] = [];
+    for (let i = 0; i < pdas.length; i += 100) {
+      const chunk = pdas.slice(i, i + 100);
+      const accs = await this.connection.getMultipleAccountsInfo(chunk);
+      for (const acc of accs) {
+        if (!acc) {
+          out.push({ flagged: false, antibody: null });
+          continue;
+        }
+        const ab = parseAntibody(Buffer.from(acc.data));
+        const flagged = ab.status === Status.Active || ab.status === Status.Genesis;
+        out.push({ flagged, antibody: ab });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Batch guard: throw on the first flagged target. Returns the flagged
+   * addresses too, so a caller that wants all hits can pass `{ throwOnFirst:
+   * false }` and inspect the array instead of catching.
+   */
+  async assertAllSafe(
+    targets: PublicKey[],
+    opts: { throwOnFirst?: boolean } = {},
+  ): Promise<PublicKey[]> {
+    const throwOnFirst = opts.throwOnFirst ?? true;
+    const verdicts = await this.checkAddresses(targets);
+    const flagged: PublicKey[] = [];
+    for (let i = 0; i < verdicts.length; i++) {
+      if (verdicts[i].flagged) {
+        if (throwOnFirst) throw new WaneBlockedError(targets[i]);
+        flagged.push(targets[i]);
+      }
+    }
+    return flagged;
+  }
+
   /** Total antibodies known to the registry. */
   async count(): Promise<bigint> {
     const acc = await this.connection.getAccountInfo(configPda());

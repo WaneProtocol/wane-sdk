@@ -135,6 +135,49 @@ describe("solana instruction builders target the right program and account count
   });
 });
 
+describe("solana batch screen preserves order and short-circuits empty input", () => {
+  const a = new PublicKey("So11111111111111111111111111111111111111112");
+  const b = new PublicKey("11111111111111111111111111111112");
+
+  it("checkAddresses on empty input makes no RPC call and returns []", async () => {
+    // A connection that throws if touched proves the empty path never hits it.
+    const w = new SolWane({
+      getMultipleAccountsInfo: () => {
+        throw new Error("must not fetch for empty input");
+      },
+    } as never);
+    expect(await w.checkAddresses([])).toEqual([]);
+  });
+
+  it("checkAddresses returns one verdict per target, in input order", async () => {
+    // Genesis-status account for `a`, missing account for `b`. A genesis
+    // antibody has status 3, so `a` flags and `b` does not.
+    const genesis = Buffer.alloc(8 + 8 + 1 + 1 + 32 + 8 + 4 + 32 + 32 + 1);
+    genesis.writeUInt8(3 /* Genesis */, 8 + 8 + 1); // status byte after disc,id,kind
+    const w = new SolWane({
+      getMultipleAccountsInfo: async (keys: PublicKey[]) => {
+        expect(keys).toHaveLength(2); // single batched request for both targets
+        return [{ data: genesis }, null];
+      },
+    } as never);
+    const verdicts = await w.checkAddresses([a, b]);
+    expect(verdicts).toHaveLength(2);
+    expect(verdicts[0].flagged).toBe(true);
+    expect(verdicts[1].flagged).toBe(false);
+    expect(verdicts[1].antibody).toBeNull();
+  });
+
+  it("assertAllSafe collects every hit when throwOnFirst is false", async () => {
+    const genesis = Buffer.alloc(8 + 8 + 1 + 1 + 32 + 8 + 4 + 32 + 32 + 1);
+    genesis.writeUInt8(3, 8 + 8 + 1);
+    const w = new SolWane({
+      getMultipleAccountsInfo: async () => [{ data: genesis }, null, { data: genesis }],
+    } as never);
+    const hits = await w.assertAllSafe([a, b, a], { throwOnFirst: false });
+    expect(hits.map((h) => h.toBase58())).toEqual([a.toBase58(), a.toBase58()]);
+  });
+});
+
 describe("evm address subject encoding", () => {
   // Lowercase input, mixed-case checksum input, and the canonical checksum must
   // all resolve to the same 32-byte left-padded subject the registry indexes on.

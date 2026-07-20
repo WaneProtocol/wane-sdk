@@ -30,6 +30,7 @@ before any value moves. One package covers Base (viem) and Solana
 | Feature | EVM (Base) | Solana |
 |---|---|---|
 | `check` / `assertSafe` before signing (free view) | stable | stable |
+| Batch screen: `checkAddresses` / `assertAllSafe` (one RPC per 100) | via multicall | stable |
 | Herd feed: `count`, `recent`, live `watch` | stable | count |
 | `report` a novel threat (stake `$WANE`, mint antibody) | stable | instruction builder |
 | Per-agent policy: caps, kill switch, TTL, allowlists | stable | policy account |
@@ -128,6 +129,16 @@ const wane = Wane.devnet();
 
 const flagged = await wane.checkAddress(new PublicKey("So111...112"));
 // { flagged: false, antibody: null }
+
+// One transaction, many destinations: screen them all in a single RPC round
+// trip (getMultipleAccountsInfo, 100 per batch) instead of one call each.
+const verdicts = await wane.checkAddresses([destA, destB, destC]);
+// Verdict[] in input order
+
+// Guard the whole set before signing; throws on the first flagged address.
+await wane.assertAllSafe([destA, destB, destC]);
+// Or collect every hit instead of throwing:
+const hits = await wane.assertAllSafe(recipients, { throwOnFirst: false });
 
 const sig = await wane.send(ownerSigner, destination, 1_000_000_000n);
 // "<base58 signature>" ; throws if the program reverts on a flagged destination
